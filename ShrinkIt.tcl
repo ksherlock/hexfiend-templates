@@ -76,7 +76,7 @@ proc one_file {} {
 		if { $version > 0 } {
 			set os [uint16 "Option Size"]
 			if { $os != 0} {
-				bytes [expr $os - 2] "Option List"
+				bytes $os "Option List"
 				if { $os & 1} { move 1 } ;# padding byte
 			}
 		}
