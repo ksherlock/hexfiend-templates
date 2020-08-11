@@ -8,6 +8,8 @@ little_endian
 
 requires 0 "49 4E 53 54"
 
+set Instruments { "" }
+
 proc pstr { n name } {
 
 	set p [pos]
@@ -15,18 +17,19 @@ proc pstr { n name } {
 
 	if { $len == 0 } {
 		move -1
-		entry $name "" 16
-		bytes 16
-		return
+		entry $name "" $n
+		bytes $n
+		return ""
 	}
 
-	if { $len > 15 } { set len 15 }
+	if { $len >= $n } { set len [expr $n - 1] }
 
 	set str [ascii $len]
 
 	goto $p
-	entry $name $str 16 ;# [expr $len + 1]
-	bytes 16
+	entry $name $str $n ;# [expr $len + 1]
+	bytes $n
+	return $str
 }
 
 
@@ -120,7 +123,9 @@ section "Instrument Header" {
 	# 16 instrument names (16-byte pascal strings)
 	# pstr "Instrument #1"
 	for { set i 1 } { $i < 17 } { incr i } {
-		pstr 16 "Instrument #$i"
+		set iname [pstr 16 "Instrument #$i"]
+
+		lappend Instruments $iname
 		# ascii 16 "Instrument #$i"
 	}
 }
@@ -128,7 +133,7 @@ section "Instrument Header" {
 for { set j 1 } { $j < 17 } { incr j } {
 
 	section "Instr #$j" {
-
+		sectionvalue [lindex $Instruments $j]
 		section "Generator 1" {
 			envelope
 
