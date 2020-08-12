@@ -2,7 +2,16 @@
 
 big_endian
 
-requires 0 "00 05 16 00"
+# apple single - 00 05 16 00
+# apple double - 00 05 16 07
+goto 3
+set tmp [uint8]
+if { $tmp == 0} {
+	requires 0 "00 05 16 00" ;# apple single
+} else {
+	requires 0 "00 05 16 07" ;# apple double
+}
+goto 0
 
 # 7 - File Info Entry is revision 1
 set Names {
@@ -54,6 +63,7 @@ proc prodos_info {length} {
 	}	
 }
 
+# todo - finder info can be > 32 if it also includes extended attributes.
 proc finder_info {length} {
 	if { $length == 32 } {
 		section "Finder Info" {
