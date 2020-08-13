@@ -32,15 +32,34 @@ section "Header" {
 	}
 	uint32 "ProDOS Blocks"
 
-	set offset [uint32 "Data Offset"]
-	uint32 "Data Size"
-	uint32 "Comment Offset"
-	uint32 "Comment Size"
-	uint32 "Creator Offset"
-	uint32 "Creator Size"
+	set entries {}
+	set a [uint32 "Data Offset"]
+	set b [uint32 "Data Size"]
+	if  { $b } { lappend entries [list "Data" $a $b]}
+
+	set a [uint32 "Comment Offset"]
+	set b [uint32 "Comment Size"]
+	if  { $b } { lappend entries [list "Comment" $a $b]}
+
+
+	set a [uint32 "Creator Offset"]
+	set b [uint32 "Creator Size"]
+	if  { $b } { lappend entries [list "Creator" $a $b]}
+
+
 	bytes 0x10 "Reserved"
 
 }
 
-goto $offset
-bytes eof "Data"
+# sort by offset
+set entries [lsort -integer -index 1 $entries]
+
+foreach e $entries {
+	set name [lindex $e 0]
+	set offset [lindex $e 1]
+	set size [lindex $e 2]
+
+	goto $offset
+	bytes $size $name
+}
+
