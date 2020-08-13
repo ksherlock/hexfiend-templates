@@ -53,6 +53,11 @@ proc one_file {} {
 
 	# 1 or more header blocks
 	# with 1 or more threads
+
+	set filename ""
+	set types {}
+	set sizes {}
+
 	section "Header Block" {
 		set header_start [pos] ;# current position.
 
@@ -87,45 +92,52 @@ proc one_file {} {
 		goto [expr $header_start + $attr_count - 2]
 		set flen [uint16]
 		if { $flen > 0 } {
-			ascii $flen "Filename"
+			set filename [ascii $flen "Filename"]
 		}
-	}
 
-	set types {}
-	set sizes {}
-	section "Threads" {
-		for { set i 0 } {$i < $total_threads } {incr i} {
+		set threads {}
+		section "Threads" {
+			for { set i 0 } {$i < $total_threads } {incr i} {
 
-			section "Thread" {
-				set class [uint16 "Class"]
-				uint16 "Format"
-				set kind [uint16 "Kind"]
-				uint16 -hex "CRC"
-				uint32 "EOF"
-				set ceof [uint32 "Compressed EOF"]
+				section "Thread" {
+					set class [uint16 "Class"]
+					uint16 "Format"
+					set kind [uint16 "Kind"]
+					uint16 -hex "CRC"
+					set eof [uint32 "EOF"]
+					set ceof [uint32 "Compressed EOF"]
 
-				if { $class < 4 && $kind < 3 } {
-					set ix [expr $kind * 4 + $class ]
-					lappend types [lindex $TNAMES $ix]
-					sectionvalue [lindex $TNAMES $ix]
-				} else {
-					lappend types "Undefined"
+					set name "Undefined"
+					if { $class < 4 && $kind < 3 } {
+						set ix [expr $kind * 4 + $class ]
+						set name [lindex $TNAMES $ix]
+						sectionvalue $name
+					}
+
+					lappend threads [list $eof $ceof $name]
 				}
-				lappend sizes $ceof
 			}
 		}
-	}
+		# data...
+		foreach t $threads {
+			set eof [lindex $t 0]
+			set ceof [lindex $t 1]
+			set name [lindex $t 2]
 
-	# data for the threads....
-	section "Data" {
-
-		for { set i 0 } {$i < $total_threads } {incr i} {
-
-			section [lindex $types $i] {
-
-				bytes [lindex $sizes $i] "Data"
+			if { $name == "Filename" } {
+				# ceof includes extra padding
+				set data [bytes $ceof $name]
+				if {$eof > 0 && $eof <= $ceof } {
+					binary scan $data a$eof filename
+				}
+			} else {
+				bytes $ceof $name
 			}
 		}
+
+
+
+		sectionvalue $filename
 	}
 
 
