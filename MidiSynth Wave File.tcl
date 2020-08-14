@@ -45,7 +45,7 @@ for { set n 1 } { $n < 65 } { incr n} {
 
 	section "Wave Def Record #$n" {
 		set name [pstr 16 "Wave name"]
-		uint16 "DOC Address"
+		uint16 -hex "DOC Address"
 		uint8 "Zero"
 		uint8 "Size"
 		uint8 "Volume"
