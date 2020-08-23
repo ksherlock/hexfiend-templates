@@ -6,19 +6,45 @@ requires 0 "32 49 4D 47"
 
 set FORMATS { "DOS Order" "ProDOS Order" "NIB" }
 
+
+
+proc image_format {x} {
+	global FORMATS
+	if {$x < [llength $FORMATS] } {
+		return [lindex $FORMATS $x]
+	}
+
+	return [format "0x%04X" $x]
+}
+
+
+
+proc uint32_fmt {name fn} {
+
+	set p [pos]
+	set x [uint32]
+
+	move -4
+	entry $name [$fn $x] 4
+	move 4
+
+	return $x
+}
+
 section "Header" {
 	ascii 4 "Signature"
 	ascii 4 "Creator"
 	uint16 "Header size"
 	uint16 "Version"
 	# set format [uint32 "Image Format"]
-	set format [uint32]
-	section "Image Format" {
-		sectionvalue $format
-		if { $format == 0 } { entry "DOS Order" "" } 
-		if { $format == 1 } { entry "ProDOS Order" "" } 
-		if { $format == 2 } { entry "NIB" "" }
-	}
+	# set format [uint32]
+	# section "Image Format" {
+	# 	sectionvalue $format
+	# 	if { $format == 0 } { entry "DOS Order" "" } 
+	# 	if { $format == 1 } { entry "ProDOS Order" "" } 
+	# 	if { $format == 2 } { entry "NIB" "" }
+	# }
+	uint32_fmt "Image Format" image_format
 
 	# set flags [uint32 -hex "Flags"]
 	set flags [uint32 -hex]
