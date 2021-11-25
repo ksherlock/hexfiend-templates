@@ -6,18 +6,52 @@ little_endian
 requires 0 "56 67 6D 20"
 
 
+# starts at 0x30
+set OPERAND_LENGTH [list \
+	1 1 1 1 1 1 1 1  1 1 1 1 1 1 1 1 \
+	2 2 2 2 2 2 2 2  2 2 2 2 2 2 2 1 \
+	1 2 2 2 2 2 2 2  2 2 2 2 2 2 2 2 \
+	0 2 0 0 0 0 0 0  0 0 0 0 0 0 0 0 \
+	0 0 0 0 0 0 0 0  0 0 0 0 0 0 0 0 \
+	0 0 0 0 0 0 0 0  0 0 0 0 0 0 0 0 \
+	0 0 0 0 0 0 0 0  0 0 0 0 0 0 0 0 \
+	2 2 2 2 2 2 2 2  2 2 2 2 2 2 2 2 \
+	2 2 2 2 2 2 2 2  2 2 2 2 2 2 2 2 \
+	3 3 3 3 3 3 3 3  3 3 3 3 3 3 3 3 \
+	3 3 3 3 3 3 3 3  3 3 3 3 3 3 3 3 \
+	4 4 4 4 4 4 4 4  4 4 4 4 4 4 4 4 \
+	4 4 4 4 4 4 4 4  4 4 4 4 4 4 4 4 \
+]
 
-# not strictly correct as it only needs to be >= 64 bytes, not 256 bytes.
-# only 0... data_offset should be treated as a header.
+set offset_gd3 0
+set offset_extra 0
+set offset_data 0
+set version 0
 
-section "Header" {
+proc peek {} {
+	if { [end] } { return -1 }
+	set x [uint8]
+	move -1
+	return $x
+}
+
+
+proc header {} {
+
+	# mame vgmwrite header size can be 0x40, 0x80, 0xc0, 0xe0, or 0x100
+	# bytes
+
+	global offset_gd3
+	global offset_data
+	global version
+
 	ascii 4 "Signature"
 	uint32 "EOF"
 	set version [uint32 -hex "Version"] ; # TODO - bcd
 	uint32 "SN76489 Clock"
 	uint32 "YM2413 Clock"
-	set gd3_offset [uint32 "GD3 Offset"]
-	if {$gd3_offset} { set gd3_offset [expr $gd3_offset + 0x14] }
+	set offset_gd3 [uint32 "GD3 Offset"]
+	if {$offset_gd3} { set offset_gd3 [expr $offset_gd3 + 0x14] }
 	uint32 "Total Samples"
 	uint32 "Loop Offset"
 	uint32 "Loop Samples"
@@ -40,27 +74,31 @@ section "Header" {
 	if {$version >= 0x0151 } {
 		uint8 "SN76489 Flags"
 	} else {
-		bytes 1 "Reserved"		
+		bytes 1 "Reserved"
 	}
 
 	if {$version >= 0x0110 } {
 		uint32 "YM2612 Clock"
 		uint32 "YM2151 Clock"
 	} else {
-		bytes 8 "Reserved"		
+		bytes 8 "Reserved"
 	}
 
 	if {$version >= 0x0150 } {
-		set data_offset [uint32 "VGM Data Offset"]
-		if {$data_offset} { set data_offset [expr $data_offset + 0x34] }
+		set offset_data [uint32 "VGM Data Offset"]
+		if {$offset_data} { set offset_data [expr $offset_data + 0x34] }
 	} else {
-		set data_offset 0x40
-		bytes 4 "Reserved"		
+		set offset_data 0x40
+		bytes 4 "Reserved"
 	}
 
 	if {$version >= 0x0151 } {
 		uint32 "Sega PCM Clock"
 		uint32 "Sega PCM Interface Register"
+		# 0x40
+		if {[pos] == $offset_data} {
+			return
+		}
 		uint32 "RF5C68 Clock"
 		uint32 "YM2203 Clock"
 		uint32 "YM2608 Clock"
@@ -80,7 +118,8 @@ section "Header" {
 		uint8 "YM2203/AY8910 Flags"
 		uint8 "YM2608/AY8910 Flags"
 	} else {
-		bytes 68 "Reserved"		
+		# todo - $offset_data check
+		bytes 68 "Reserved"
 	}
 
 	if {$version >= 0x0160 } {
@@ -88,7 +127,7 @@ section "Header" {
 		uint8 "Reserved"
 		uint8 "Loop Base"
 	} else {
-		bytes 3 "Reserved"		
+		bytes 3 "Reserved"
 	}
 
 	if {$version >= 0x0151 } {
@@ -97,6 +136,10 @@ section "Header" {
 		bytes 1 "Reserved"		
 	}
 
+	# 0x80
+	if {[pos] == $offset_data} {
+		return
+	}
 
 	if {$version >= 0x0161 } {
 		uint32 "GameBoy DMG Clock"
@@ -117,20 +160,25 @@ section "Header" {
 		uint32 "Pokey Clock"
 		uint32 "QSound Clock"
 	} else {
-		bytes 56 "Reserved"		
+		bytes 56 "Reserved"
 	}
 
 	if {$version >= 0x0171 } {
 		uint32 "SCSP Clock"
 	} else {
-		bytes 4 "Reserved"		
+		bytes 4 "Reserved"
 	}
 
 
 	if {$version >= 0x0170 } {
-		uint32 "Extra Header Offset"
+		set offset_extra [uint32 "Extra Header Offset"]
 	} else {
-		bytes 4 "Reserved"		
+		bytes 4 "Reserved"
+	}
+
+	# 0xc0
+	if {[pos] == $offset_data} {
+		return
 	}
 
 	if {$version >= 0x0171 } {
@@ -145,11 +193,53 @@ section "Header" {
 		uint8 "Reserved"
 		uint32 "X1-010 Clock"
 		uint32 "C352 Clock"
+
+		# 0xe0
+		if {[pos] == $offset_data} {
+			return
+		}
+
+
 		uint32 "GA20 Clock"
 	} else {
-		bytes 4 "Reserved"		
+		# todo - $offset_data check
+		bytes 4 "Reserved"
 	}
 	bytes 28 "Reserved"
+
+
 }
 
-# move to data_offset...
+# data block
+proc op_67 {} {
+	section "Data Block" {
+		uint8 -hex "Command"
+		uint8 -hex ""
+		uint8 -hex "Data Type"
+		set size [uint32 "Size"]
+		bytes $size "Data"
+	}
+}
+
+
+section "Header" {
+	header
+	# extra header offset -- not yet supported.
+}
+
+goto $offset_data ; # just in case
+section "Commands" {
+
+	for {set i 0 } { $i < 5} {incr i} {
+		set cmd [peek]
+		if {$cmd >= 0x30} {
+			set len [lindex $OPERAND_LENGTH [expr $cmd - 0x30]]
+			if {$cmd == 0x67} { op_67
+			} else {
+				bytes [expr $len + 1] "Command"
+			}
+		}
+
+	}
+}
+
