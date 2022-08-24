@@ -1,3 +1,5 @@
+# https://web.archive.org/web/20201028142058/https://wiki.68kmla.org/DiskCopy_4.2_format_specification
+# http://nulib.com/library/FTN.e00005.htm
 
 big_endian
 
