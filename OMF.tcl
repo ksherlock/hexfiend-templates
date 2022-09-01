@@ -8,27 +8,27 @@ set VERSION 2
 set LABLEN 0
 set NUMLEN 4
 set BYTECOUNT 0
+set V1_ISLIBRARY 0
 
-proc pstr { name } {
+proc pstr { name {prefixbytes 0}} {
 
 	global LABLEN
 
-	set p [pos]
-	set len [uint8]
-
-	set n $LABLEN
-	if { $n == 0 } { set n [expr $len + 1 ]}
-
-	if { $len == 0 } {
-		move -1
-		entry $name "" $n
-		bytes $n
-		return ""
+	set p [expr [pos] - $prefixbytes]
+	
+	if { $LABLEN == 0 } { 
+		set len [uint8]
+		set n [expr $len + 1 + $prefixbytes]
+	} else {
+		set len $LABLEN
+		set n [expr $LABLEN + $prefixbytes]
 	}
 
-	if { $len >= $n } { set len [expr $n - 1] }
-
-	set str [ascii $len]
+	if {$len > 0} {
+		set str [ascii $len]
+	} else {
+		set str ""
+	}
 
 	goto $p
 	entry $name $str $n ;# [expr $len + 1]
@@ -55,18 +55,18 @@ set NAMES {
 	ALIGN ORG RELOC INTERSEG USING STRONG GLOBAL GEQU
 	MEM "" "" EXPR ZPEXPR BKEXPR RELEXPR LOCAL
 	EQU DS LCONST LEXPR ENTRY cRELOC cINTERSEG SUPER
-	"" "" "" "" "" "" "" ""
+	"" "" "" General Experimental Experimental Experimental Experimental
 }
 
 proc op_name {op} {
 	global NAMES
-	if {!$op} { return "EOF" }
+	if {!$op} { return "END" }
 	if {$op < 0xe0} { return "CONST" }
 	return [lindex $NAMES [expr $op - 0xe0]]
 }
 
-proc op_eof  {op} {
-	# section "EOF" { uint8 -hex "Opcode" }
+proc op_end  {op} {
+	# section "END" { uint8 -hex "Opcode" }
 }
 
 proc op_const {op} {
@@ -79,10 +79,17 @@ proc op_lconst {op} {
 }
 
 
-proc op_numlen {op} {
+proc op_ds {op} {
 	uint32 "Length" ;#NUMLEN
 }
 
+proc op_align {op} {
+	uint32 -hex "Alignment" ;#NUMLEN
+}
+
+proc op_org {op} {
+	int32 "Offset" ;#NUMLEN
+}
 
 proc op_interseg {op} {
 	uint8 "Count"
@@ -117,8 +124,39 @@ proc op_creloc {op} {
 
 proc op_super {op} {
 	set l [uint32 "Length"]
-	uint8 "Type"
-	bytes [expr $l - 1] "Data"
+	set type [uint8]
+	move -1
+	if {$type == 0} {
+		entry "Type" "RELOC2" 1
+	} elseif {$type == 1} {
+		entry "Type" "RELOC3" 1
+	} elseif {$type <= 37} {
+		set x [expr $type - 1]
+		entry "Type" "INTERSEG$x" 1
+	} else {
+		error "INVALID SUPER RECORD TYPE"
+	}
+	set p [expr [pos] + $l]
+	move 1
+	
+	section -collapsed "Subrecords" {
+		while {[pos] < $p && ![end]} {
+			set count [uint8]
+			move -1
+			if {$count < 0x80} {
+				set count [expr $count + 1]
+				section "Patch $count place(s)" {
+					uint8 -hex "Count-1"
+					bytes $count "Offsets"
+				}
+			} else {
+				set count [expr $count - 0x80]
+				uint8 -hex "Skip $count page(s)"
+			}
+		}
+	}
+	
+#	bytes [expr $l - 1] "Data"
 }
 
 proc op_lablen {op} {
@@ -127,29 +165,59 @@ proc op_lablen {op} {
 
 
 # expressions
-proc expression {} {
+set EXPR_OPS {
+	"END" "+" "-" "*" "/" "%" "- (unary)" "<<"
+	"&&" "||" "XOR (logical)" "!"
+	"<=" ">=" "!=" "<" ">" "=="
+	"&" "|" "^" "~" 
+}
 
-	set p [pos]
+proc expression {} {
+	global EXPR_OPS
+
 	set size 0
 
-	while {![end]} {
-		set x [uint8]
-		if {!$x} { break }
-		if {$x <= 0x15} { continue } ;# ops
-		if {$x == 0x80} { continue } ;# current pc
-		if {$x == 0x81 || $x == 0x87} {
-			uint32 ;# NUMLEN
-			continue
+	section "Expression" {
+		while {![end]} {
+			set x [uint8]
+			if {!$x} {
+				move -1
+				entry "End" "" 1
+				move 1
+				break
+			} elseif {$x <= 0x15} {
+				move -1
+				entry "Opcode" [lindex $EXPR_OPS $x] 1
+				move 1
+			} elseif {$x == 0x80} {
+				move -1
+				entry "PC" "* (PC)" 1
+				move 1
+			} elseif {$x == 0x81} {
+				set val [int32]
+				move -5
+				entry "Constant" $val 5
+				move 5
+			} elseif {$x == 0x82} {
+				pstr "Weak Ref" 1
+			} elseif {$x == 0x83} {
+				pstr "Reference" 1
+			} elseif {$x == 0x84} {
+				pstr "Label Length" 1
+			} elseif {$x == 0x85} {
+				pstr "Label Type" 1
+			} elseif {$x == 0x86} {
+				pstr "Label Count" 1
+			} elseif {$x == 0x87} {
+				set offset [uint32]
+				move -5
+				entry "Rel" "start+$offset" 5
+				move 5
+			} else {
+				error [format "BAD EXPR OPCODE 0x%02x at 0x%06x" $x [expr [pos] - 1]]
+			}
 		}
-		if {$x >= 0x82 && $x <= 0x86} {
-			xpstr ;# LABLEN
-			continue
-		}
-		return -code error [format "BAD EXPR OPCODE 0x%02x at 0x%06x" $op [pos]]
 	}
-	set size [expr [pos] - $p]
-	goto $p
-	bytes $size "Expression"
 }
 
 proc op_expr {op} {
@@ -171,28 +239,28 @@ proc op_entry {op} {
 }
 
 proc op_equ {op} {
-	global $VERSION
-
-	if {$VERSION == 0 } {
-		uint32 "Value" ;# NUMLEN
-		return
-	}
+	global VERSION
 
 	pstr "Name"
-	if {$VERSION >= 2} { uint16 "Length" }
-	else { uint8 "Length" }
-	uint8 "Type"
-	uint8 "Private"
-	expression
+	if {$VERSION >= 2} { uint16 "Length" } else { uint8 "Length" }
+	ascii 1 "Type"
+	if {$VERSION >= 1} { uint8 "Private" }
+	if {$VERSION == 0} { uint32 "Value" } else { expression }
 }
 
 
 proc op_local {op} {
+	global VERSION
+
 	pstr "Name"
-	if {$VERSION >= 2} { uint16 "Length" }
-	else { uint8 "Length" }	
-	uint8 "Type"
-	uint8 "Private"
+	if {$VERSION >= 2} { uint16 "Length" } else { uint8 "Length" }
+	ascii 1 "Type"
+	if {$VERSION >= 1} { uint8 "Private" }
+}
+
+proc op_mem {op} {
+	uint32 -hex "Start" ;#NUMLEN
+	uint32 -hex "End" ;#NUMLEN
 }
 
 proc op_invalid {op} {
@@ -205,35 +273,40 @@ set OPCODES { }
 for { set i 0x00} {$i < 0x100} {incr i} { lappend OPCODES op_invalid }
 for { set i 0x01} { $i < 0xe0 } { incr i } { lset OPCODES $i op_const }
 
-lset OPCODES 0x00 op_eof
-lset OPCODES 0xe0 op_numlen ;# ALIGN
-lset OPCODES 0xe1 op_numlen ;# ORG
+lset OPCODES 0x00 op_end
+lset OPCODES 0xe0 op_align
+lset OPCODES 0xe1 op_org
 lset OPCODES 0xe2 op_reloc
 lset OPCODES 0xe3 op_cinterseg
 lset OPCODES 0xe4 op_lablen ;# USING
 lset OPCODES 0xe5 op_lablen ;# STRONG
 lset OPCODES 0xe6 op_local ;# GLOBAL
 lset OPCODES 0xe7 op_equ ;# GEQU
+lset OPCODES 0xe8 op_mem
 lset OPCODES 0xeb op_expr
 lset OPCODES 0xec op_expr ;# ZPEXPR
 lset OPCODES 0xed op_expr ;# BKEXPR
 lset OPCODES 0xee op_relexpr
 lset OPCODES 0xef op_local
 lset OPCODES 0xf0 op_equ
-lset OPCODES 0xf1 op_numlen ;# DS
+lset OPCODES 0xf1 op_ds
 lset OPCODES 0xf2 op_lconst
 lset OPCODES 0xf3 op_expr ;# LEXPR
 lset OPCODES 0xf4 op_entry
 lset OPCODES 0xf5 op_creloc
 lset OPCODES 0xf6 op_cinterseg
 lset OPCODES 0xf7 op_super
+lset OPCODES 0xfb op_lconst; # General
+lset OPCODES 0xfc op_lconst; # Experimental
+lset OPCODES 0xfd op_lconst; # Experimental
+lset OPCODES 0xfe op_lconst; # Experimental
+lset OPCODES 0xff op_lconst; # Experimental
 
 proc body {} {
 	global OPCODES
 
 	while {![end]} {
 
-		set p [pos]
 		set op [uint8]
 		move -1
 
@@ -247,9 +320,13 @@ proc body {} {
 }
 
 proc header2 {} {
-
 	global BYTECOUNT
+
 	set p [pos]
+
+	# require NUMLEN == 4 and NUMSEX == 0 (little endian)
+	requires [expr $p + 0x0e] "04"
+	requires [expr $p + 0x20] "00"
 
 	set BYTECOUNT [uint32 "Byte Count"]
 	uint32 "Reserved Space"
@@ -264,16 +341,18 @@ proc header2 {} {
 	uint32 -hex "Origin"
 	uint32 -hex "Alignment"
 	uint8 "Number Sex"
-	uint8 "Unused"
+	set revision [uint8 "Unused/Revision"]
 	uint16 "Segment Number"
 	uint32 -hex "Entry"
 
 	set disp_name [uint16 "Name Displacement"]
 	set disp_data [uint16 "Data Displacement"]
 
-	# optional temp origin
+	if { $revision >= 1 && $disp_name >= 0x30} {
+		uint32 -hex "Temp Origin"
+	}
 
-	if { $disp_name > 0x2c} { move [expr $disp_name - 0x2c] }
+	goto [expr $p + $disp_name]
 	ascii 10 "Load Name"
 	sectionvalue [pstr "Segment Name"]
 
@@ -282,10 +361,20 @@ proc header2 {} {
 
 proc header1 {} {
 	global BYTECOUNT
+	global V1_ISLIBRARY
 
 	set p [pos]
 
-	set blocks [uint32 "Block Count"]
+	# require NUMLEN == 4 and NUMSEX == 0 (little endian)
+	requires [expr $p + 0x0e] "04"
+	requires [expr $p + 0x20] "00"
+
+	if {!$V1_ISLIBRARY} {
+		set blocks [uint32 "Block Count"]
+		set BYTECOUNT [expr $blocks * 512]
+	} else {
+		set BYTECOUNT [uint32 "Byte Count"]
+	}
 	uint32 "Reserved Space"
 	uint32 "Length"
 	uint8 "Type"
@@ -303,39 +392,67 @@ proc header1 {} {
 	set disp_name [uint16 "Name Displacement"]
 	set disp_data [uint16 "Data Displacement"]
 
-	if { $disp_name > 0x2c} { move [expr $disp_name - 0x2c] }
+	goto [expr $p + $disp_name]
 	ascii 10 "Load Name"
 	sectionvalue [pstr "Segment Name"]
 
-
 	goto [expr $p + $disp_data]
-
-	# if this is a library, blocks is probably byte count.
-	set BYTECOUNT [expr $blocks * 512]
 }
 
+proc header0 {} {
+	global BYTECOUNT
 
+	set p [pos]
 
+	# require NUMLEN == 4 and NUMSEX == 0 (little endian)
+	requires [expr $p + 0x0e] "04"
+	requires [expr $p + 0x1c] "00"
+
+	set blocks [uint32 "Block Count"]
+	set BYTECOUNT [expr $blocks * 512]
+	uint32 "Reserved Space"
+	uint32 "Length"
+	uint8 "Type"
+	uint8 "Label Length"
+	uint8 "Number Length"
+	uint8 "Version"
+	uint32 -hex "Bank Size"
+	uint32 -hex "Origin"
+	uint32 -hex "Alignment"
+	uint8 "Number Sex"
+	move 7
+	sectionvalue [pstr "Segment Name"]
+}
 
 while {![end]} {
 
 	set p [pos]
-	move 0x0d
+	move 0x0c
+	set V1_TYPE [uint8]
 	set LABLEN [uint8]
 	set NUMLEN [uint8]
 	set VERSION [uint8]
+	if {$VERSION == 1 && $V1_TYPE % 0x20 == 0x08} {
+		set V1_ISLIBRARY 1
+	}
 	goto $p
 
 	section "Header" {
 		switch $VERSION {
+			0 { header0 }
 			1 { header1 }
 			2 { header2 }
 			default { return -code error "BAD OMF VERSION $VERSION" }
 		}
-
 	}
 
 	section "Body" {
 		body
+		if {$p + $BYTECOUNT >= [pos]} {
+			goto [expr $p + $BYTECOUNT]
+		} else {
+			error "BAD BYTE COUNT/BLOCK COUNT"
+		}
+		if {$p != 0 || ![end]} { sectioncollapse }
 	}
 }
