@@ -28,7 +28,10 @@ proc read_var { {name ""} } {
 proc read_string { {name ""} } {
 	set p1 [pos]
 	set len [read_var]
-	set str [ascii $len]
+
+	# if expr returns empty string if no matching case
+	set str [if { $len > 0 } { ascii $len }]
+
 	set p2 [pos]
 	if { [expr { $name ne "" }] } {
 		entry $name $str [expr $p2-$p1] $p1
