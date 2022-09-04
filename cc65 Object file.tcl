@@ -42,6 +42,7 @@ proc read_string { {name ""} } {
 
 
 set StringPool {}
+set ImportStrings {}
 
 
 set SegMap {}
@@ -118,6 +119,19 @@ proc read_string_pool_string { name } {
 	entry $name $ss [expr $p2-$p1] $p1
 
 	return $ss
+}
+
+proc read_import_string { name } {
+
+	global ImportStrings
+
+	set p1 [pos]
+	set n [read_var]
+	set p2 [pos]
+	set ss [lindex $ImportStrings $n]
+	entry $name $ss [expr $p2-$p1] $p1
+
+	return $ss
 
 }
 
@@ -147,7 +161,7 @@ proc read_expr { name } {
 		} elseif { $op == $EXPR_LITERAL } {
 			uint32 "Literal"
 		} elseif { $op == $EXPR_SYMBOL } {
-			read_string_pool_string "Symbol"
+			read_import_string "Symbol"
 		} elseif { $op == $EXPR_SECTION } {
 			uint8 "Section"
 		} else {
@@ -203,6 +217,8 @@ set SYM_IMPORT 0x0100
 
 proc ImportSegment { size } {
 
+	global ImportStrings
+
 	set count [read_var "Count"]
 
 	for {set i 0} {$i < $count} {incr i} {
@@ -210,6 +226,7 @@ proc ImportSegment { size } {
 			uint8 "Address Size"
 
 			set nm [read_string_pool_string "Name"]
+			lappend ImportStrings $nm
 			sectionname $nm
 
 			read_info_list "Def Lines"
@@ -300,27 +317,37 @@ uint16 -hex Flags
 	offset_size "Option"
 	offset_size "File"
 	offset_size "Segment"
-	offset_size "Import"
+	set imports [offset_size "Import" 1]
 	offset_size "Export"
 	offset_size "Debug Symbol"
 	offset_size "Line Info"
-	set ss [offset_size "String Pool" 1]
+	set strings [offset_size "String Pool" 1]
 	offset_size "Assert"
 	offset_size "Scope"
 	offset_size "Span"
 
 }
 
-# string pool first.
-# if { (lindex $ss 1) > 0 } {
-set offset [lindex $ss 0]
-set size [lindex $ss 1]
+# string pool and import pool should be first
+# as they are dependencies.
+
+set offset [lindex $strings 0]
+set size [lindex $strings 1]
 
 goto $offset
 section -collapsed "String Pool Segment" {
 	StringPoolSegment $size
 }
-# }
+
+set offset [lindex $imports 0]
+set size [lindex $imports 1]
+
+goto $offset
+section -collapsed "Import Segment" {
+	ImportSegment $size
+}
+
+
 
 set SegMap [lsort -integer -index 0 $SegMap]
 
@@ -334,7 +361,6 @@ foreach s $SegMap {
 	section -collapsed "$name Segment" {
 		switch $name {
 			"Export"  { ExportSegment $size }
-			"Import"  { ImportSegment $size }
 			"File"    { FileSegment $size }
 			"Option"  { OptionSegment $size }
 			"Segment" { SegmentSegment $size }
