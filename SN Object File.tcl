@@ -69,7 +69,7 @@ proc LocalSymbolRecord {} {
 	# /g write non-global symbols to the linker object file.
 	section "Local Symbol" {
 		uint8 -hex Opcode
-		uint16 -hex "Record ID"
+		uint16 -hex "Section ID"
 		uint32 -hex "Offset"
 		set name [pstr "Name"]
 		sectionvalue "$name"
@@ -110,9 +110,9 @@ proc BlockRecord {} {
 	}
 }
 
-proc BSSRecord {} {
+proc DSRecord {} {
 
-	section "BSS" {
+	section "DS" {
 		uint8 -hex Opcode
 		uint32 -hex "Size"
 	}
@@ -263,7 +263,7 @@ while {![end]} {
 	}
 	if {$x == 0x02 } { BlockRecord ; continue }
 	if {$x == 0x06 } { BlockTypeRecord ; continue }
-	if {$x == 0x08 } { BSSRecord ; continue }
+	if {$x == 0x08 } { DSRecord ; continue }
 	if {$x == 0x0a } { RelocRecord ; continue }
 	if {$x == 0x0c } { GlobalSymbolRecord ; continue }
 	if {$x == 0x0e } { ExternSymbolRecord ; continue }
