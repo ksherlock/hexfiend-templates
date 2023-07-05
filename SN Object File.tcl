@@ -56,8 +56,8 @@ proc FileNameRecord {} {
 }
 
 
-proc ExternRecord {} {
-	section "Extern Name" {
+proc ExternSymboleRecord {} {
+	section "Extern Symbol" {
 		uint8 -hex Opcode
 		uint16 -hex "Record ID"
 		set name [pstr "Name"]
@@ -65,8 +65,9 @@ proc ExternRecord {} {
 	}
 }
 
-proc BSSSymbolRecord {} {
-	section "BSS Symbol" {
+proc LocalSymbolRecord {} {
+	# /g write non-global symbols to the linker object file.
+	section "Local Symbol" {
 		uint8 -hex Opcode
 		uint16 -hex "Record ID"
 		uint32 -hex "Offset"
@@ -75,8 +76,8 @@ proc BSSSymbolRecord {} {
 	}
 }
 
-proc SymbolRecord {} {
-	section "Symbol Name" {
+proc GlobalSymbolRecord {} {
+	section "Global Symbol" {
 		uint8 -hex Opcode
 		uint16 -hex "Record ID"
 		uint16 -hex "Section ID"
@@ -88,7 +89,7 @@ proc SymbolRecord {} {
 
 
 proc LocalSymbolRecord {} {
-	section "Local Symbol Name" {
+	section "Local Symbol" {
 		uint8 -hex Opcode
 		uint16 -hex "Section ID"
 		uint32 -hex "Offset"
@@ -183,15 +184,17 @@ proc RelocRecord {} {
 		uint16 -hex "Address"
 
 		# types:
-		# 0x32 - 00110010 - 1 byte, pc-relative
-		# 0x34 - 00110100 - 2 byte, pc-relative
-		# 0x02 - 00000010 - 1 byte
-		# 0x1a - 00011010 - 2 byte
-		# 0x10 - 00010000 - 4 byte
+		# 0x32 - 00110010 - 1 byte, pc-relative (bra, etc)
+		# 0x34 - 00110100 - 2 byte, pc-relative (brl, etc)
+		# 0x02 - 00000010 - 1 byte ; db
+		# 0x1a - 00011010 - 2 byte ; dw
+		# 0x2c - 00101100 - 3 byte ; dt
+		# 0x10 - 00010000 - 4 byte ; dl
 
-		# 0x0a - 00001010 - 1 byte dp? -- ref & 0x000000ff
-		# 0x1c - 2 byte, dp? -- ref & 0x0000ffff
-		# 0x30 - 00210000 - 3 bytes w/ & 0x00ffffff -- > modifier
+		#
+		# 0x0a - 00001010 - 1 byte  -- ref & 0x000000ff ; lda <xxx
+		# 0x1c - 00011100 - 2 bytes -- ref & 0x0000ffff ; lda |xxx
+		# 0x30 - 00210000 - 3 bytes -- ref & 0x00ffffff ; lda >xxx
 
 		# probably an array of these things....
 
@@ -247,7 +250,6 @@ proc RelocRecord {} {
 				continue
 			}
 
-
 			uint8 -hex "????"
 			incr abort
 		}
@@ -274,16 +276,13 @@ while {![end]} {
 	if {$x == 0x06 } { BlockTypeRecord ; continue }
 	if {$x == 0x08 } { BSSRecord ; continue }
 	if {$x == 0x0a } { RelocRecord ; continue }
-	if {$x == 0x0c } { SymbolRecord ; continue }
-	if {$x == 0x0e } { ExternRecord ; continue }
+	if {$x == 0x0c } { GlobalSymbolRecord ; continue }
+	if {$x == 0x0e } { ExternSymbolRecord ; continue }
 	if {$x == 0x10 } { SectionNameRecord ; continue }
-	if {$x == 0x12 } { BSSSymbolRecord ; continue }
+	if {$x == 0x12 } { LocalSymbolRecord ; continue }
 	if {$x == 0x14 } { GroupNameRecord ; continue }
 	if {$x == 0x1c } { FileNameRecord ; continue }
-	# 1e -- only present if /z filename info
-	# seems to be line number for the next (relocation) record
-	# 22 -- only present if /z filename info? increment line by 1????
-	# 24 -- only present if /z filename info? increment line by xx???
+
 	if {$x == 0x1e } { SetLineNumber ;  continue  }
 	if {$x == 0x22 } { IncrementLineNumber  ; continue }
 	if {$x == 0x24 } { AddLineNumber ; continue }
