@@ -88,17 +88,6 @@ proc GlobalSymbolRecord {} {
 }
 
 
-proc LocalSymbolRecord {} {
-	section "Local Symbol" {
-		uint8 -hex Opcode
-		uint16 -hex "Section ID"
-		uint32 -hex "Offset"
-		set name [pstr "Name"]
-		sectionvalue "$name"
-	}
-}
-
-
 proc BlockTypeRecord {} {
 
 	section "Block Type" {
