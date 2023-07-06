@@ -56,7 +56,7 @@ proc FileNameRecord {} {
 }
 
 
-proc ExternSymboleRecord {} {
+proc ExternSymbolRecord {} {
 	section "Extern Symbol" {
 		uint8 -hex Opcode
 		uint16 -hex "Record ID"
