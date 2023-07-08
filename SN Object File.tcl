@@ -245,6 +245,20 @@ proc RelocRecord {} {
 	}	
 }
 
+proc RegRecord {} {
+	# regs pc= generates $2a (32-bit regs)
+	# regs x/y/a/s generates $18 (16-bit regs)
+	# regs p/db = $16 (8-bit regs)
+	section "Reg" {
+		uint8 -hex Opcode
+		uint8 -hex "???"
+		uint32 -hex "Value"
+		uint8 -hex "???" ; # 00=a; 02=x; 04=y; 06=s;08=pc;0b=p;0c=d;0e=db
+		uint8 -hex "???"
+	}
+
+}
+
 section "Header" {
 	uint32 -hex Magic
 	uint16 -hex "???"
@@ -275,6 +289,9 @@ while {![end]} {
 	if {$x == 0x1e } { SetLineNumber ;  continue  }
 	if {$x == 0x22 } { IncrementLineNumber  ; continue }
 	if {$x == 0x24 } { AddLineNumber ; continue }
+	if {$x == 0x2a } { RegRecord; continue }
+	if {$x == 0x18 } { RegRecord; continue }
+	if {$x == 0x16 } { RegRecord; continue }
 	if {$x == 0x2c } { LineRecord  ; continue }
 
 	if {$x == 0x28 } { LocalSymbolRecord ; continue }
