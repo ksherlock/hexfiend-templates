@@ -162,6 +162,38 @@ proc AddLineNumber {} {
 	}	
 }
 
+proc zd_3a {} {
+
+	section "/zd 3a" {
+		uint8 -hex Opcode
+		bytes 8 "???"
+	}
+}
+
+proc zd_3c {} {
+
+	section "/zd 3c" {
+		uint8 -hex Opcode
+		uint16 "???"
+	}
+}
+
+
+proc zd_32 {} {
+
+	section "/zd 32" {
+		uint8 -hex Opcode
+		uint16 "???"
+	}
+}
+
+proc op_34 {} {
+
+	section "op 34" {
+		uint8 -hex Opcode
+		uint16 "???"
+	}
+}
 
 proc RelocRecord {} {
 
@@ -239,6 +271,46 @@ proc RelocRecord {} {
 				continue
 			}
 
+			if { $op == 0x0c } {
+				# sec()
+				uint8 -hex "Sect()"
+				uint16 -hex "Section ID"
+				continue
+			}
+
+			if { $op == 0x0e } {
+				# sec()
+				uint8 -hex "Group()"
+				uint16 -hex "Group ID"
+				continue
+			}
+
+
+
+			if { $op == 0x14 } {
+				# grouporg()
+				uint8 -hex "GroupOrg()"
+				uint16 -hex "Group ID"
+				continue
+			}
+
+			if { $op == 0x16 } {
+				# sec()
+				uint8 -hex "SectEnd()"
+				uint16 -hex "Section ID"
+				continue
+			}
+
+			if { $op == 0x18 } {
+				# sec()
+				uint8 -hex "GroupEnd()"
+				uint16 -hex "Group ID"
+				continue
+			}
+
+
+			# others...
+
 			uint8 -hex "????"
 			incr abort
 		}
@@ -262,6 +334,8 @@ proc RegRecord {} {
 section "Header" {
 	uint32 -hex Magic
 	uint16 -hex "???"
+	# possibly the processor type -- 65816, 68000, etc.
+	# byte 0 - 00 = 68000, 02 = 65816, 03 = z80? 07=ps1?
 }
 
 while {![end]} {
@@ -295,6 +369,13 @@ while {![end]} {
 	if {$x == 0x2c } { LineRecord  ; continue }
 
 	if {$x == 0x28 } { LocalSymbolRecord ; continue }
+
+	# /zd debugger entries
+	if {$x == 0x32} { zd_32 ; continue }
+	if {$x == 0x3a} { zd_3a ; continue }
+	if {$x == 0x3c} { zd_3c ; continue }
+
+	if {$x == 0x34} { op_34 ; continue }
 
 	uint8 -hex "???"
 	incr abort
