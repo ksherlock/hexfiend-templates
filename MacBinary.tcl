@@ -30,7 +30,7 @@ proc pstr { n name } {
 
 proc next_block {} {
 	set p [pos]
-	goto [expr ($p + 127 ) & 0xffffff00 ]
+	goto [expr ($p + 127 ) & 0xffffff80 ]
 }
 
 section "Header" {
