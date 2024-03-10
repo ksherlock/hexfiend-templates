@@ -271,6 +271,12 @@ proc RelocRecord {} {
 				continue
 			}
 
+			if { $op == 0x06 } {
+				uint8 -hex "Bank()"
+				uint16 -hex "Symbol ID"
+				continue
+			}
+
 			if { $op == 0x0c } {
 				# sec()
 				uint8 -hex "Sect()"
