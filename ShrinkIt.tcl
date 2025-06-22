@@ -124,14 +124,16 @@ proc one_file {} {
 			set ceof [lindex $t 1]
 			set name [lindex $t 2]
 
-			if { $name == "Filename" } {
-				# ceof includes extra padding
-				set data [bytes $ceof $name]
-				if {$eof > 0 && $eof <= $ceof } {
-					binary scan $data a$eof filename
+			if { $ceof > 0 } {
+				if { $name == "Filename" } {
+					# ceof includes extra padding
+					set data [bytes $ceof $name]
+					if {$eof > 0 && $eof <= $ceof } {
+						binary scan $data a$eof filename
+					}
+				} else {
+					bytes $ceof $name
 				}
-			} else {
-				bytes $ceof $name
 			}
 		}
 
