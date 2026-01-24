@@ -127,7 +127,7 @@ proc catfdr { } {
 }
 
 
-section "descriptor" {
+section "Descriptor" {
 	uint32 "Forward Link"
 	uint32 "Backward Link"
 	set type [uint8 "Node Type"]
@@ -138,11 +138,20 @@ section "descriptor" {
 
 
 set Offsets {}
-# -2, <= to include the unused record ptr
+# -2 to include the unused record ptr
 goto [expr 512 - ($count * 2) - 2]
-for { set i 0 } { $i <= $count }  { incr i } {
-	lappend Offsets [uint16]
+section "Record Offsets" {
+	lappend Offsets [uint16 "Offset free space"]
+	for { set i 0 } { $i < $count }  { incr i } {
+		set num [expr $count - $i - 1]
+		lappend Offsets [uint16 "Offset record $num"]
+	}
 }
+
+
+#for { set i 0 } { $i <= $count }  { incr i } {
+#	lappend Offsets [uint16]
+#}
 
 set Offsets [lreverse $Offsets]
 
@@ -219,12 +228,11 @@ if { $type == 1 } {
 
 
 # offsets. (again... should just do this once..)
-goto [expr 512 - (($count + 1) * 2)]
-section "Record Offsets" {
-	uint16 "Offset free space"
-	for { set i 0 } { $i < $count }  { incr i } {
-		set num [expr $count - $i - 1]
-		uint16 "Offset record $num"
-	}
-
-}
+# goto [expr 512 - (($count + 1) * 2)]
+# section "Record Offsets" {
+# 	uint16 "Offset free space"
+# 	for { set i 0 } { $i < $count }  { incr i } {
+# 		set num [expr $count - $i - 1]
+# 		uint16 "Offset record $num"
+# 	}
+# }
