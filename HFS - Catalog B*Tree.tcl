@@ -137,14 +137,25 @@ section "descriptor" {
 }
 
 
-
 set Offsets {}
-goto [expr 512 - ($count * 2)]
-for { set i 0 } { $i < $count }  { incr i } {
+# -2, <= to include the unused record ptr
+goto [expr 512 - ($count * 2) - 2]
+for { set i 0 } { $i <= $count }  { incr i } {
 	lappend Offsets [uint16]
 }
 
 set Offsets [lreverse $Offsets]
+
+set Sizes {}
+for { set i 0 } { $i < $count }  { incr i } {
+	lappend Sizes [expr [lindex $Offsets [expr $i + 1]] - [lindex $Offsets $i]]
+}
+
+# remove the unused ptr
+# tcl 8.7???
+# lpop Offsets
+# set Offsets [lremove $Offsets end]
+set Offsets [lrange $Offsets 0 end-1 ]
 
 goto 14
 
@@ -185,6 +196,7 @@ if  { $type == 255 } {
 # header
 if { $type == 1 } {
 
+	goto [lindex $Offsets 0]
 	section "Header Record" {
 		uint16 "Depth"
 		uint32 "Root"
@@ -195,8 +207,24 @@ if { $type == 1 } {
 		uint16 "Max Key Length"
 	}
 
-	# todo -- map record
+	# map record
+	goto [lindex $Offsets 2]
+
+	set size [lindex $Sizes 2]
+	section "Map Record" {
+		bytes $size "Bits"
+	}
+
 }
 
 
+# offsets. (again... should just do this once..)
+goto [expr 512 - (($count + 1) * 2)]
+section "Record Offsets" {
+	uint16 "Offset free space"
+	for { set i 0 } { $i < $count }  { incr i } {
+		set num [expr $count - $i - 1]
+		uint16 "Offset record $num"
+	}
 
+}
