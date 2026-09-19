@@ -77,6 +77,9 @@ while {![end]} {
 			uint8 version_flag
 			uint16 version_number
 		}
+
+		# @)#(\x00
+		ascii 5 file_leader
 		goto $offset
 		bytes $size data
 	}
